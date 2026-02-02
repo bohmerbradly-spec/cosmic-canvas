@@ -1,11 +1,19 @@
 import { Leva } from 'leva';
+import { useState, useEffect } from 'react';
 import { StarBoxScene, useStarBoxControls, DEFAULT_CONFIG } from '@/components/starfield';
 
 const Index = () => {
   const controls = useStarBoxControls();
+  const [showHelp, setShowHelp] = useState(true);
   
   // Merge controls with defaults for any missing values
   const config = { ...DEFAULT_CONFIG, ...controls };
+
+  // Hide help after a few seconds
+  useEffect(() => {
+    const timer = setTimeout(() => setShowHelp(false), 8000);
+    return () => clearTimeout(timer);
+  }, []);
 
   return (
     <div className="relative h-screen w-screen overflow-hidden bg-background">
@@ -84,6 +92,17 @@ const Index = () => {
         }}
       />
       
+      {/* Flight Controls Help */}
+      {config.flightEnabled && showHelp && (
+        <div className="absolute top-6 left-1/2 -translate-x-1/2 z-10">
+          <div className="rounded-lg bg-card/90 px-6 py-4 backdrop-blur-sm border border-border animate-pulse">
+            <p className="text-sm text-primary font-medium text-center">
+              Click to enable mouse look • WASD to fly • Space/Shift for up/down • Q to boost
+            </p>
+          </div>
+        </div>
+      )}
+      
       {/* Info Overlay */}
       <div className="absolute bottom-6 left-6 z-10 max-w-md">
         <div className="rounded-lg bg-card/80 p-4 backdrop-blur-sm border border-border">
@@ -91,8 +110,8 @@ const Index = () => {
             HyperReal StarBox System
           </h1>
           <p className="text-sm text-muted-foreground">
-            Advanced 3D starfield with realistic stellar classification, 
-            atmospheric scintillation, and Milky Way visualization.
+            3D starfield with {config.showNearStars ? '72 real nearby stars from Hipparcos catalog' : 'procedural stars'}. 
+            Near stars transition from 2D skybox to 3D as you approach.
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -118,7 +137,7 @@ const Index = () => {
       <div className="absolute top-6 left-6 z-10">
         <div className="rounded-lg bg-card/60 px-3 py-2 backdrop-blur-sm border border-border">
           <p className="text-xs font-mono text-primary">
-            ★ {config.starCount.toLocaleString()} stars
+            ★ {config.starCount.toLocaleString()} bg stars + 72 near stars
           </p>
         </div>
       </div>

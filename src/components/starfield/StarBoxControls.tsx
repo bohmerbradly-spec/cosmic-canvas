@@ -24,13 +24,25 @@ export const DEFAULT_CONFIG: StarBoxConfig = {
   atmosphereIntensity: 0.3,
   
   // Camera
-  autoRotate: true,
+  autoRotate: false,
   autoRotateSpeed: 0.1,
+  
+  // Near stars (real 3D stars)
+  nearStarScale: 0.5,
+  nearStarGlow: 1.5,
+  transitionDistance: 50,
+  fullDistance: 30,
+  showNearStars: true,
+  
+  // Flight controls
+  flightEnabled: true,
+  flightSpeed: 2,
 };
 
 const PRESETS = {
   'Deep Space': {
-    starCount: 20000,
+    starCount: 25000,
+    starRadius: 150,
     galacticConcentration: 0.3,
     milkyWayIntensity: 1.2,
     milkyWayCoreIntensity: 1.0,
@@ -41,6 +53,7 @@ const PRESETS = {
   },
   'Bright Night': {
     starCount: 12000,
+    starRadius: 80,
     galacticConcentration: 0.25,
     milkyWayIntensity: 0.6,
     milkyWayCoreIntensity: 0.4,
@@ -50,7 +63,8 @@ const PRESETS = {
     atmosphereIntensity: 0.5,
   },
   'Galactic Core': {
-    starCount: 25000,
+    starCount: 35000,
+    starRadius: 200,
     galacticConcentration: 0.6,
     milkyWayIntensity: 1.5,
     milkyWayCoreIntensity: 1.5,
@@ -61,6 +75,7 @@ const PRESETS = {
   },
   'Minimal': {
     starCount: 5000,
+    starRadius: 60,
     galacticConcentration: 0.15,
     milkyWayIntensity: 0.3,
     milkyWayCoreIntensity: 0.2,
@@ -74,12 +89,12 @@ const PRESETS = {
 export function useStarBoxControls() {
   const controls = useControls({
     'Star Field': folder({
-      starCount: { value: DEFAULT_CONFIG.starCount, min: 1000, max: 50000, step: 1000 },
-      starRadius: { value: DEFAULT_CONFIG.starRadius, min: 50, max: 200, step: 10 },
+      starCount: { value: DEFAULT_CONFIG.starCount, min: 1000, max: 100000, step: 1000 },
+      starRadius: { value: DEFAULT_CONFIG.starRadius, min: 50, max: 500, step: 10 },
       galacticConcentration: { value: DEFAULT_CONFIG.galacticConcentration, min: 0, max: 1, step: 0.05 },
       colorVariation: { value: DEFAULT_CONFIG.colorVariation, min: 0, max: 0.5, step: 0.05 },
-      starSizeMultiplier: { value: DEFAULT_CONFIG.starSizeMultiplier, min: 0.2, max: 3, step: 0.1 },
-      brightnessMultiplier: { value: DEFAULT_CONFIG.brightnessMultiplier, min: 0.5, max: 3, step: 0.1 },
+      starSizeMultiplier: { value: DEFAULT_CONFIG.starSizeMultiplier, min: 0.2, max: 5, step: 0.1 },
+      brightnessMultiplier: { value: DEFAULT_CONFIG.brightnessMultiplier, min: 0.5, max: 5, step: 0.1 },
     }),
     'Scintillation': folder({
       twinkleIntensity: { value: DEFAULT_CONFIG.twinkleIntensity, min: 0, max: 1, step: 0.05 },
@@ -96,9 +111,18 @@ export function useStarBoxControls() {
       skyBottomColor: { value: DEFAULT_CONFIG.skyBottomColor },
       atmosphereIntensity: { value: DEFAULT_CONFIG.atmosphereIntensity, min: 0, max: 1, step: 0.1 },
     }),
-    'Camera': folder({
-      autoRotate: { value: DEFAULT_CONFIG.autoRotate },
-      autoRotateSpeed: { value: DEFAULT_CONFIG.autoRotateSpeed, min: 0, max: 1, step: 0.05 },
+    'Near Stars (3D)': folder({
+      showNearStars: { value: DEFAULT_CONFIG.showNearStars, label: 'Show Near Stars' },
+      nearStarScale: { value: DEFAULT_CONFIG.nearStarScale, min: 0.1, max: 2, step: 0.1, label: 'Star Scale' },
+      nearStarGlow: { value: DEFAULT_CONFIG.nearStarGlow, min: 0, max: 3, step: 0.1, label: 'Glow Intensity' },
+      transitionDistance: { value: DEFAULT_CONFIG.transitionDistance, min: 10, max: 200, step: 5, label: 'Transition Start' },
+      fullDistance: { value: DEFAULT_CONFIG.fullDistance, min: 5, max: 100, step: 5, label: 'Full 3D Distance' },
+    }),
+    'Flight Controls': folder({
+      flightEnabled: { value: DEFAULT_CONFIG.flightEnabled, label: 'Enable Flight' },
+      flightSpeed: { value: DEFAULT_CONFIG.flightSpeed, min: 0.1, max: 20, step: 0.1, label: 'Flight Speed' },
+      autoRotate: { value: DEFAULT_CONFIG.autoRotate, label: 'Auto Rotate (when flight off)' },
+      autoRotateSpeed: { value: DEFAULT_CONFIG.autoRotateSpeed, min: 0, max: 1, step: 0.05, label: 'Rotate Speed' },
     }),
     'Presets': folder({
       'Deep Space': button(() => applyPreset('Deep Space')),
@@ -109,10 +133,7 @@ export function useStarBoxControls() {
   });
 
   // Note: Leva doesn't support programmatic preset application easily
-  // The presets are shown as buttons but require page state management
-  // This is a simplified version
   function applyPreset(_presetName: keyof typeof PRESETS) {
-    // In a full implementation, you'd use Leva's set() or manage state externally
     console.log('Apply preset:', _presetName);
   }
 
