@@ -57,6 +57,23 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
+        // Star classification colors
+        star: {
+          o: "hsl(var(--star-o))",
+          b: "hsl(var(--star-b))",
+          a: "hsl(var(--star-a))",
+          f: "hsl(var(--star-f))",
+          g: "hsl(var(--star-g))",
+          k: "hsl(var(--star-k))",
+          m: "hsl(var(--star-m))",
+        },
+        // Cosmic colors
+        cosmic: {
+          milkyCore: "hsl(var(--milky-way-core))",
+          milkyEdge: "hsl(var(--milky-way-edge))",
+          nebulaBlue: "hsl(var(--nebula-blue))",
+          nebulaPurple: "hsl(var(--nebula-purple))",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",
