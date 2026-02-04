@@ -3,6 +3,6 @@ export { StarField } from './StarField';
 export { MilkyWay } from './MilkyWay';
 export { SkyBox } from './SkyBox';
 export { useStarBoxControls, DEFAULT_CONFIG } from './StarBoxControls';
-export { FlightControls } from './FlightControls';
+export { VirtualFlightControls } from './VirtualFlightControls';
 export { ProjectedStarField } from './ProjectedStarField';
-export { Star3D } from './Star3D';
+export { Star3DLayer } from './Star3DLayer';
