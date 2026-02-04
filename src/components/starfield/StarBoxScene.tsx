@@ -4,9 +4,9 @@ import { Suspense, useState, useCallback } from 'react';
 import * as THREE from 'three';
 import { MilkyWay } from './MilkyWay';
 import { SkyBox } from './SkyBox';
-import { FlightControls } from './FlightControls';
+import { VirtualFlightControls } from './VirtualFlightControls';
 import { ProjectedStarField } from './ProjectedStarField';
-import { Star3D } from './Star3D';
+import { Star3DLayer } from './Star3DLayer';
 import { NEAR_STARS } from '@/lib/nearStarData';
 
 export interface StarBoxConfig {
@@ -56,37 +56,38 @@ interface StarBoxSceneProps {
 
 interface SceneProps {
   config: StarBoxConfig;
-  cameraPosition: THREE.Vector3;
+  virtualPosition: THREE.Vector3;
   velocity: THREE.Vector3;
-  hyperdrive: boolean;
 }
 
-function Scene({ config, cameraPosition, velocity, hyperdrive }: SceneProps) {
+function Scene({ config, virtualPosition, velocity }: SceneProps) {
   return (
     <>
-      {/* Background sky sphere - follows camera */}
-      <group position={cameraPosition}>
-        <SkyBox
-          radius={config.starRadius + 5}
-          topColor={config.skyTopColor}
-          bottomColor={config.skyBottomColor}
-          atmosphereIntensity={config.atmosphereIntensity}
-        />
-        
-        {/* Milky Way band - on skybox */}
-        <MilkyWay
-          radius={config.starRadius + 2}
-          intensity={config.milkyWayIntensity}
-          bandWidth={config.milkyWayBandWidth}
-          dustLanes={config.dustLanes}
-          coreIntensity={config.milkyWayCoreIntensity}
-        />
-      </group>
+      {/* 
+        Fixed skybox at origin - never moves.
+        Camera is also at origin - only rotates.
+      */}
+      <SkyBox
+        radius={config.starRadius + 5}
+        topColor={config.skyTopColor}
+        bottomColor={config.skyBottomColor}
+        atmosphereIntensity={config.atmosphereIntensity}
+      />
+      
+      {/* Milky Way on fixed skybox */}
+      <MilkyWay
+        radius={config.starRadius + 2}
+        intensity={config.milkyWayIntensity}
+        bandWidth={config.milkyWayBandWidth}
+        dustLanes={config.dustLanes}
+        coreIntensity={config.milkyWayCoreIntensity}
+      />
       
       {/* 
-        Projected Star Field - stars with 3D world positions
-        but rendered as 2D projections on the skybox with parallax.
-        They fade out as camera approaches (transition to 3D).
+        Projected 2D Stars on skybox.
+        Stars have real 3D world positions but are projected onto
+        the fixed skybox based on virtualPosition. They slide across
+        the skybox with parallax as you "fly".
       */}
       {config.showNearStars && (
         <ProjectedStarField
@@ -98,48 +99,42 @@ function Scene({ config, cameraPosition, velocity, hyperdrive }: SceneProps) {
           brightnessMultiplier={config.brightnessMultiplier}
           twinkleIntensity={config.twinkleIntensity}
           twinkleSpeed={config.twinkleSpeed}
+          virtualPosition={virtualPosition}
           velocity={velocity}
-          hyperdrive={hyperdrive}
           hyperdriveStretch={config.hyperdriveStretch}
         />
       )}
       
       {/* 
-        3D Stars - actual geometry in world space.
-        These fade IN as camera approaches (taking over from 2D projection).
+        3D Stars in space.
+        When a star's virtual distance is close enough, 3D geometry
+        appears at the relative position (starWorldPos - virtualPos).
+        This creates the illusion of flying past real 3D stars.
       */}
-      {config.showNearStars && NEAR_STARS.map((star) => {
-        // Skip Sol (we're at Sol)
-        if (star.distance === 0) return null;
-        
-        return (
-          <Star3D
-            key={star.id}
-            star={star}
-            transitionDistance={config.transitionDistance}
-            fullDistance={config.fullDistance}
-            starScale={config.nearStarScale}
-            glowIntensity={config.nearStarGlow}
-          />
-        );
-      })}
+      {config.showNearStars && (
+        <Star3DLayer
+          stars={NEAR_STARS}
+          virtualPosition={virtualPosition}
+          transitionDistance={config.transitionDistance}
+          fullDistance={config.fullDistance}
+          starScale={config.nearStarScale}
+          glowIntensity={config.nearStarGlow}
+        />
+      )}
     </>
   );
 }
 
 export function StarBoxScene({ config }: StarBoxSceneProps) {
-  const [cameraPosition, setCameraPosition] = useState(new THREE.Vector3(0, 0, 0));
+  const [virtualPosition, setVirtualPosition] = useState(new THREE.Vector3(0, 0, 0));
   const [velocity, setVelocity] = useState(new THREE.Vector3(0, 0, 0));
-  const [hyperdrive, setHyperdrive] = useState(false);
   
-  const handlePositionChange = useCallback((position: THREE.Vector3) => {
-    setCameraPosition(position.clone());
+  const handleVirtualPositionChange = useCallback((position: THREE.Vector3) => {
+    setVirtualPosition(position);
   }, []);
   
   const handleVelocityChange = useCallback((vel: THREE.Vector3) => {
-    setVelocity(vel.clone());
-    // Detect hyperdrive based on speed (H key toggle is in FlightControls)
-    // We check if we're moving very fast
+    setVelocity(vel);
   }, []);
 
   return (
@@ -153,19 +148,25 @@ export function StarBoxScene({ config }: StarBoxSceneProps) {
     >
       <PerspectiveCamera 
         makeDefault 
-        position={[0, 0, 0.1]} 
+        position={[0, 0, 0]} 
         fov={75}
         near={0.001}
         far={config.starRadius * 3}
       />
       
-      {/* Flight controls - click canvas to enable mouse look, H for hyperdrive */}
+      {/* 
+        Virtual Flight Controls:
+        - Camera stays at origin, only rotates
+        - WASD updates a virtual position in space
+        - Virtual position is used for star parallax calculations
+        - Press H for hyperdrive
+      */}
       {config.flightEnabled && (
-        <FlightControls
+        <VirtualFlightControls
           speed={config.flightSpeed}
           rotationSpeed={0.002}
           enabled={config.flightEnabled}
-          onPositionChange={handlePositionChange}
+          onVirtualPositionChange={handleVirtualPositionChange}
           onVelocityChange={handleVelocityChange}
         />
       )}
@@ -173,9 +174,8 @@ export function StarBoxScene({ config }: StarBoxSceneProps) {
       <Suspense fallback={null}>
         <Scene 
           config={config} 
-          cameraPosition={cameraPosition}
+          virtualPosition={virtualPosition}
           velocity={velocity}
-          hyperdrive={hyperdrive}
         />
       </Suspense>
     </Canvas>

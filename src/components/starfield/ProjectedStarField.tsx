@@ -1,5 +1,5 @@
 import { useRef, useMemo, useEffect } from 'react';
-import { useFrame, useThree } from '@react-three/fiber';
+import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { NearStarData, hexToRgb, getStarVisualSize } from '@/lib/nearStarData';
 
@@ -12,70 +12,74 @@ interface ProjectedStarFieldProps {
   brightnessMultiplier: number;
   twinkleIntensity: number;
   twinkleSpeed: number;
+  virtualPosition: THREE.Vector3;
   velocity: THREE.Vector3;
-  hyperdrive: boolean;
   hyperdriveStretch: number;
 }
 
-// Shader for projected stars with parallax and hyperdrive stretch
+/**
+ * Projected Star Field
+ * 
+ * Stars exist at real 3D world positions, but are PROJECTED onto a fixed
+ * 2D skybox sphere. As the virtual camera position changes, stars slide
+ * across the skybox with parallax motion (near stars move faster).
+ * 
+ * When a star's virtual distance gets close enough, it fades out from
+ * the skybox (to be replaced by 3D geometry in front of camera).
+ */
+
+// Vertex shader - projects 3D world positions onto fixed skybox with parallax
 const projectedStarVertexShader = `
   attribute float size;
   attribute vec3 starColor;
   attribute float brightness;
-  attribute float starDistance;
   attribute vec3 worldPosition;
   
-  uniform vec3 cameraWorldPos;
+  uniform vec3 virtualCameraPos;
   uniform float skyboxRadius;
   uniform float transitionDistance;
   uniform float fullDistance;
   uniform vec3 velocity;
-  uniform float hyperdrive;
   uniform float hyperdriveStretch;
   
   varying vec3 vColor;
   varying float vBrightness;
   varying float vOpacity;
-  varying vec2 vStretch;
+  varying float vStretchFactor;
   
   void main() {
     vColor = starColor;
     
-    // Direction from camera to star's world position
-    vec3 toStar = worldPosition - cameraWorldPos;
+    // Vector from virtual camera position to star's world position
+    vec3 toStar = worldPosition - virtualCameraPos;
     float distanceToStar = length(toStar);
     vec3 direction = normalize(toStar);
     
-    // Project onto skybox sphere (always at skyboxRadius from camera)
-    vec3 projectedPos = cameraWorldPos + direction * skyboxRadius;
+    // Project onto skybox: direction * skyboxRadius (skybox centered at origin)
+    vec3 projectedPos = direction * skyboxRadius;
     
-    // Calculate opacity: fade OUT as we get close (star becomes 3D)
-    float fadeStart = transitionDistance;
-    float fadeEnd = fullDistance;
-    
-    if (distanceToStar < fadeEnd) {
-      vOpacity = 0.0; // Fully 3D, hide from skybox
-    } else if (distanceToStar < fadeStart) {
-      vOpacity = (distanceToStar - fadeEnd) / (fadeStart - fadeEnd);
+    // Calculate opacity: fade OUT as virtual distance decreases
+    if (distanceToStar < fullDistance) {
+      vOpacity = 0.0;
+    } else if (distanceToStar < transitionDistance) {
+      vOpacity = (distanceToStar - fullDistance) / (transitionDistance - fullDistance);
     } else {
-      vOpacity = 1.0; // Fully on skybox
+      vOpacity = 1.0;
     }
     
     vBrightness = brightness * vOpacity;
     
-    // Hyperdrive stretch calculation
-    vStretch = vec2(1.0, 1.0);
-    if (hyperdrive > 0.5 && length(velocity) > 0.01) {
+    // Hyperdrive stretch based on velocity alignment
+    vStretchFactor = 1.0;
+    float velLen = length(velocity);
+    if (velLen > 0.1) {
       vec3 velDir = normalize(velocity);
-      float alignment = dot(direction, velDir);
-      
-      // Stars in direction of travel stretch more
-      float stretchFactor = 1.0 + abs(alignment) * hyperdriveStretch;
-      vStretch = vec2(1.0, stretchFactor);
+      float alignment = abs(dot(direction, velDir));
+      vStretchFactor = 1.0 + alignment * hyperdriveStretch * min(velLen * 0.5, 1.0);
     }
     
     vec4 mvPosition = modelViewMatrix * vec4(projectedPos, 1.0);
-    gl_PointSize = size * (300.0 / -mvPosition.z) * vStretch.y;
+    gl_PointSize = size * (300.0 / -mvPosition.z) * vStretchFactor;
     gl_Position = projectionMatrix * mvPosition;
   }
 `;
@@ -84,27 +88,26 @@ const projectedStarFragmentShader = `
   varying vec3 vColor;
   varying float vBrightness;
   varying float vOpacity;
-  varying vec2 vStretch;
+  varying float vStretchFactor;
   
   void main() {
     if (vOpacity < 0.01) discard;
     
     vec2 center = gl_PointCoord - vec2(0.5);
     
-    // Apply stretch for hyperdrive effect
-    center.y /= vStretch.y;
+    // Stretch vertically for hyperdrive effect
+    center.y /= vStretchFactor;
     
     float dist = length(center);
     
-    // Core and glow
     float core = smoothstep(0.5, 0.0, dist);
     float glow = smoothstep(0.5, 0.1, dist) * 0.5;
     
-    // Streak effect when stretched
+    // Streak trail when stretched
     float streak = 0.0;
-    if (vStretch.y > 1.1) {
+    if (vStretchFactor > 1.2) {
       streak = smoothstep(0.5, 0.0, abs(center.x) * 4.0) * 
-               smoothstep(0.5, 0.0, abs(center.y) * 0.5) * 0.8;
+               smoothstep(0.5, 0.0, abs(center.y)) * 0.6;
     }
     
     float alpha = (core + glow + streak) * vBrightness;
@@ -127,15 +130,13 @@ export function ProjectedStarField({
   brightnessMultiplier,
   twinkleIntensity,
   twinkleSpeed,
+  virtualPosition,
   velocity,
-  hyperdrive,
   hyperdriveStretch,
 }: ProjectedStarFieldProps) {
   const pointsRef = useRef<THREE.Points>(null);
   const materialRef = useRef<THREE.ShaderMaterial>(null);
-  const { camera } = useThree();
   
-  // Create geometry with star data
   const { geometry, baseBrightness, twinkleData } = useMemo(() => {
     const count = stars.length;
     const positions = new Float32Array(count * 3);
@@ -143,19 +144,18 @@ export function ProjectedStarField({
     const colors = new Float32Array(count * 3);
     const sizes = new Float32Array(count);
     const brightness = new Float32Array(count);
-    const distances = new Float32Array(count);
     const twinkle: Array<{ phase: number; speed: number }> = [];
     
     stars.forEach((star, i) => {
-      // Initial positions (will be updated each frame)
-      positions[i * 3] = star.position.x;
-      positions[i * 3 + 1] = star.position.y;
-      positions[i * 3 + 2] = star.position.z;
-      
-      // World positions (fixed)
+      // World positions
       worldPositions[i * 3] = star.position.x;
       worldPositions[i * 3 + 1] = star.position.y;
       worldPositions[i * 3 + 2] = star.position.z;
+      
+      // Initial projected position (will be updated by shader)
+      positions[i * 3] = star.position.x;
+      positions[i * 3 + 1] = star.position.y;
+      positions[i * 3 + 2] = star.position.z;
       
       const rgb = hexToRgb(star.color);
       colors[i * 3] = rgb.r;
@@ -163,13 +163,11 @@ export function ProjectedStarField({
       colors[i * 3 + 2] = rgb.b;
       
       const visualSize = getStarVisualSize(star);
-      sizes[i] = visualSize * starSizeMultiplier * 2;
+      sizes[i] = visualSize * starSizeMultiplier * 3;
       
-      // Brightness based on distance (inverse square, with minimum)
-      const distanceFactor = Math.max(0.1, 1 / (1 + star.distance * 0.05));
-      brightness[i] = distanceFactor * brightnessMultiplier * (visualSize * 0.5);
-      
-      distances[i] = star.distance;
+      // Brightness inverse-square with distance
+      const distanceFactor = Math.max(0.15, 1 / (1 + star.distance * 0.03));
+      brightness[i] = distanceFactor * brightnessMultiplier * Math.sqrt(visualSize);
       
       twinkle.push({
         phase: Math.random() * Math.PI * 2,
@@ -183,7 +181,6 @@ export function ProjectedStarField({
     geo.setAttribute('starColor', new THREE.BufferAttribute(colors, 3));
     geo.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
     geo.setAttribute('brightness', new THREE.BufferAttribute(brightness, 1));
-    geo.setAttribute('starDistance', new THREE.BufferAttribute(distances, 1));
     
     return { 
       geometry: geo, 
@@ -192,14 +189,30 @@ export function ProjectedStarField({
     };
   }, [stars, starSizeMultiplier, brightnessMultiplier]);
   
-  // Update shader uniforms and animate
+  const uniforms = useMemo(() => ({
+    virtualCameraPos: { value: new THREE.Vector3() },
+    skyboxRadius: { value: skyboxRadius },
+    transitionDistance: { value: transitionDistance },
+    fullDistance: { value: fullDistance },
+    velocity: { value: new THREE.Vector3() },
+    hyperdriveStretch: { value: hyperdriveStretch },
+  }), [skyboxRadius, transitionDistance, fullDistance, hyperdriveStretch]);
+  
+  useEffect(() => {
+    if (materialRef.current) {
+      materialRef.current.uniforms.skyboxRadius.value = skyboxRadius;
+      materialRef.current.uniforms.transitionDistance.value = transitionDistance;
+      materialRef.current.uniforms.fullDistance.value = fullDistance;
+      materialRef.current.uniforms.hyperdriveStretch.value = hyperdriveStretch;
+    }
+  }, [skyboxRadius, transitionDistance, fullDistance, hyperdriveStretch]);
+  
   useFrame((state) => {
     if (!materialRef.current) return;
     
     const mat = materialRef.current;
-    mat.uniforms.cameraWorldPos.value.copy(camera.position);
+    mat.uniforms.virtualCameraPos.value.copy(virtualPosition);
     mat.uniforms.velocity.value.copy(velocity);
-    mat.uniforms.hyperdrive.value = hyperdrive ? 1.0 : 0.0;
     
     // Twinkling
     if (twinkleIntensity > 0) {
@@ -217,27 +230,6 @@ export function ProjectedStarField({
       brightness.needsUpdate = true;
     }
   });
-  
-  // Create uniforms
-  const uniforms = useMemo(() => ({
-    cameraWorldPos: { value: new THREE.Vector3() },
-    skyboxRadius: { value: skyboxRadius },
-    transitionDistance: { value: transitionDistance },
-    fullDistance: { value: fullDistance },
-    velocity: { value: new THREE.Vector3() },
-    hyperdrive: { value: 0.0 },
-    hyperdriveStretch: { value: hyperdriveStretch },
-  }), [skyboxRadius, transitionDistance, fullDistance, hyperdriveStretch]);
-  
-  // Update uniforms when props change
-  useEffect(() => {
-    if (materialRef.current) {
-      materialRef.current.uniforms.skyboxRadius.value = skyboxRadius;
-      materialRef.current.uniforms.transitionDistance.value = transitionDistance;
-      materialRef.current.uniforms.fullDistance.value = fullDistance;
-      materialRef.current.uniforms.hyperdriveStretch.value = hyperdriveStretch;
-    }
-  }, [skyboxRadius, transitionDistance, fullDistance, hyperdriveStretch]);
   
   return (
     <points ref={pointsRef} geometry={geometry} frustumCulled={false}>
