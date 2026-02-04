@@ -37,6 +37,9 @@ export const DEFAULT_CONFIG: StarBoxConfig = {
   // Flight controls
   flightEnabled: true,
   flightSpeed: 2,
+  
+  // Hyperdrive
+  hyperdriveStretch: 10,
 };
 
 const PRESETS = {
@@ -121,6 +124,7 @@ export function useStarBoxControls() {
     'Flight Controls': folder({
       flightEnabled: { value: DEFAULT_CONFIG.flightEnabled, label: 'Enable Flight' },
       flightSpeed: { value: DEFAULT_CONFIG.flightSpeed, min: 0.1, max: 20, step: 0.1, label: 'Flight Speed' },
+      hyperdriveStretch: { value: DEFAULT_CONFIG.hyperdriveStretch, min: 1, max: 50, step: 1, label: 'Hyperdrive Stretch' },
       autoRotate: { value: DEFAULT_CONFIG.autoRotate, label: 'Auto Rotate (when flight off)' },
       autoRotateSpeed: { value: DEFAULT_CONFIG.autoRotateSpeed, min: 0, max: 1, step: 0.05, label: 'Rotate Speed' },
     }),

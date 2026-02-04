@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback } from 'react';
+import { useRef, useCallback, useState } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 
@@ -7,9 +7,10 @@ interface FlightControlsProps {
   rotationSpeed: number;
   enabled: boolean;
   onPositionChange?: (position: THREE.Vector3) => void;
+  onVelocityChange?: (velocity: THREE.Vector3) => void;
+  hyperdriveMultiplier?: number;
 }
 
-// Key state tracking
 const keyState: Record<string, boolean> = {};
 
 export function FlightControls({
@@ -17,13 +18,15 @@ export function FlightControls({
   rotationSpeed = 0.002,
   enabled = true,
   onPositionChange,
+  onVelocityChange,
+  hyperdriveMultiplier = 50,
 }: FlightControlsProps) {
   const { camera, gl } = useThree();
   const velocityRef = useRef(new THREE.Vector3());
   const euler = useRef(new THREE.Euler(0, 0, 0, 'YXZ'));
   const isPointerLocked = useRef(false);
+  const [hyperdrive, setHyperdrive] = useState(false);
 
-  // Mouse movement handler
   const onMouseMove = useCallback((event: MouseEvent) => {
     if (!enabled || !isPointerLocked.current) return;
 
@@ -31,26 +34,26 @@ export function FlightControls({
     const movementY = event.movementY || 0;
 
     euler.current.setFromQuaternion(camera.quaternion);
-
     euler.current.y -= movementX * rotationSpeed;
     euler.current.x -= movementY * rotationSpeed;
-
-    // Clamp vertical rotation
     euler.current.x = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, euler.current.x));
 
     camera.quaternion.setFromEuler(euler.current);
   }, [camera, enabled, rotationSpeed]);
 
-  // Key handlers
   const onKeyDown = useCallback((event: KeyboardEvent) => {
     keyState[event.code] = true;
+    
+    // Toggle hyperdrive with H
+    if (event.code === 'KeyH') {
+      setHyperdrive(prev => !prev);
+    }
   }, []);
 
   const onKeyUp = useCallback((event: KeyboardEvent) => {
     keyState[event.code] = false;
   }, []);
 
-  // Pointer lock handlers
   const onPointerLockChange = useCallback(() => {
     isPointerLocked.current = document.pointerLockElement === gl.domElement;
   }, [gl]);
@@ -62,7 +65,9 @@ export function FlightControls({
   }, [enabled, gl]);
 
   // Setup event listeners
-  useEffect(() => {
+  useFrame(() => {}, -1); // Run before other useFrames
+  
+  const setupListeners = useCallback(() => {
     const canvas = gl.domElement;
 
     document.addEventListener('mousemove', onMouseMove);
@@ -80,19 +85,28 @@ export function FlightControls({
     };
   }, [gl, onMouseMove, onKeyDown, onKeyUp, onPointerLockChange, requestPointerLock]);
 
-  // Animation frame
+  // Use effect for setup
+  const hasSetup = useRef(false);
+  useFrame(() => {
+    if (!hasSetup.current) {
+      hasSetup.current = true;
+      const cleanup = setupListeners();
+      // Store cleanup for later (though in R3F this is tricky)
+      (window as any).__flightControlsCleanup = cleanup;
+    }
+  });
+
   useFrame((_, delta) => {
     if (!enabled) return;
 
     const velocity = velocityRef.current;
-    const actualSpeed = speed * delta;
+    const currentSpeed = hyperdrive ? speed * hyperdriveMultiplier : speed;
+    const actualSpeed = currentSpeed * delta;
 
-    // Get camera direction vectors
     const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
     const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
     const up = new THREE.Vector3(0, 1, 0);
 
-    // Reset velocity
     velocity.set(0, 0, 0);
 
     // WASD movement
@@ -109,7 +123,7 @@ export function FlightControls({
       velocity.add(right.clone().multiplyScalar(actualSpeed));
     }
     
-    // Vertical movement (Space/Shift)
+    // Vertical movement
     if (keyState['Space']) {
       velocity.add(up.clone().multiplyScalar(actualSpeed));
     }
@@ -117,19 +131,35 @@ export function FlightControls({
       velocity.add(up.clone().multiplyScalar(-actualSpeed));
     }
 
-    // Boost with Q
+    // Boost with Q (additional boost on top of hyperdrive)
     if (keyState['KeyQ']) {
       velocity.multiplyScalar(3);
     }
 
-    // Apply velocity
     camera.position.add(velocity);
 
-    // Notify position change
-    if (onPositionChange && velocity.length() > 0) {
-      onPositionChange(camera.position.clone());
+    if (velocity.length() > 0) {
+      onPositionChange?.(camera.position.clone());
+      onVelocityChange?.(velocity.clone());
+    } else {
+      onVelocityChange?.(new THREE.Vector3(0, 0, 0));
     }
   });
 
   return null;
+}
+
+export function useFlightState() {
+  const [position, setPosition] = useState(new THREE.Vector3(0, 0, 0));
+  const [velocity, setVelocity] = useState(new THREE.Vector3(0, 0, 0));
+  const [hyperdrive, setHyperdrive] = useState(false);
+  
+  return {
+    position,
+    setPosition,
+    velocity,
+    setVelocity,
+    hyperdrive,
+    setHyperdrive,
+  };
 }
