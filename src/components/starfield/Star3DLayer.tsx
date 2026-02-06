@@ -1,5 +1,5 @@
 import { useRef, useMemo } from 'react';
-import { useFrame, useThree } from '@react-three/fiber';
+import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { NearStarData, hexToRgb, getStarVisualSize } from '@/lib/nearStarData';
 
@@ -10,17 +10,26 @@ interface Star3DLayerProps {
   fullDistance: number;
   starScale: number;
   glowIntensity: number;
-  debugColors?: boolean; // Show magenta for 3D stars
+  debugColors?: boolean;
 }
 
 /**
- * 3D Star Layer
+ * 3D Star Layer - FIXED APPROACH
  * 
- * When stars get close enough (based on virtual position), they transition
- * from the 2D skybox projection into 3D geometry that appears in front
- * of the fixed camera. The 3D star is positioned based on the RELATIVE
- * position between virtual camera and star world position.
+ * Key insight: We DON'T place 3D stars at their real world distance.
+ * Instead, we place them at a FIXED render distance from the camera
+ * and scale their SIZE to match their angular appearance.
+ * 
+ * As virtualPosition approaches a star:
+ * 1. The star's direction on the skybox stays the same
+ * 2. The 3D star fades in at a fixed distance from camera
+ * 3. The size GROWS as we get closer (simulating approach)
+ * 
+ * The 3D star is positioned along the direction vector at a fixed
+ * render distance (e.g., 10 units), but scaled based on virtual distance.
  */
+
+const RENDER_DISTANCE = 10; // Fixed distance from camera for 3D stars
 
 const star3DVertexShader = `
   varying vec3 vNormal;
@@ -96,112 +105,6 @@ const glowFragmentShader = `
   }
 `;
 
-interface SingleStar3DProps {
-  star: NearStarData;
-  virtualPosition: THREE.Vector3;
-  transitionDistance: number;
-  fullDistance: number;
-  starScale: number;
-  glowIntensity: number;
-  debugColors: boolean;
-}
-
-function SingleStar3D({ 
-  star, 
-  virtualPosition,
-  transitionDistance, 
-  fullDistance, 
-  starScale, 
-  glowIntensity,
-  debugColors,
-}: SingleStar3DProps) {
-  const groupRef = useRef<THREE.Group>(null);
-  const glowRef = useRef<THREE.Mesh>(null);
-  const { camera } = useThree();
-  
-  const rgb = useMemo(() => hexToRgb(star.color), [star.color]);
-  const color = useMemo(() => new THREE.Color(rgb.r, rgb.g, rgb.b), [rgb]);
-  const size = useMemo(() => getStarVisualSize(star) * starScale, [star, starScale]);
-  
-  const starMaterial = useMemo(() => {
-    return new THREE.ShaderMaterial({
-      vertexShader: star3DVertexShader,
-      fragmentShader: star3DFragmentShader,
-      uniforms: {
-        starColor: { value: color },
-        glowIntensity: { value: glowIntensity },
-        opacity: { value: 0 },
-        debugColors: { value: debugColors },
-      },
-      transparent: true,
-      depthWrite: false,
-    });
-  }, [color, glowIntensity, debugColors]);
-  
-  const glowMaterial = useMemo(() => {
-    return new THREE.ShaderMaterial({
-      vertexShader: glowVertexShader,
-      fragmentShader: glowFragmentShader,
-      uniforms: {
-        starColor: { value: color },
-        glowIntensity: { value: glowIntensity },
-        opacity: { value: 0 },
-        debugColors: { value: debugColors },
-      },
-      transparent: true,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-      side: THREE.DoubleSide,
-    });
-  }, [color, glowIntensity, debugColors]);
-  
-  useFrame(() => {
-    if (!groupRef.current) return;
-    
-    // Star's world position
-    const starWorldPos = new THREE.Vector3(star.position.x, star.position.y, star.position.z);
-    
-    // Relative position = star world pos - virtual camera pos
-    // This is where the star appears relative to our fixed camera at origin
-    const relativePos = starWorldPos.clone().sub(virtualPosition);
-    const distance = relativePos.length();
-    
-    // Position the 3D star at the relative position
-    groupRef.current.position.copy(relativePos);
-    
-    // Calculate opacity: fade IN as we get close
-    let opacity = 0;
-    if (distance < fullDistance) {
-      opacity = 1;
-    } else if (distance < transitionDistance) {
-      opacity = 1 - (distance - fullDistance) / (transitionDistance - fullDistance);
-    }
-    
-    starMaterial.uniforms.opacity.value = opacity;
-    starMaterial.uniforms.glowIntensity.value = glowIntensity;
-    starMaterial.uniforms.debugColors.value = debugColors;
-    glowMaterial.uniforms.opacity.value = opacity;
-    glowMaterial.uniforms.glowIntensity.value = glowIntensity;
-    glowMaterial.uniforms.debugColors.value = debugColors;
-    
-    // Billboard the glow toward camera (which is at origin)
-    if (glowRef.current) {
-      glowRef.current.lookAt(camera.position);
-    }
-  });
-  
-  return (
-    <group ref={groupRef}>
-      <mesh material={starMaterial}>
-        <sphereGeometry args={[size * 0.15, 16, 16]} />
-      </mesh>
-      <mesh ref={glowRef} material={glowMaterial}>
-        <planeGeometry args={[size, size]} />
-      </mesh>
-    </group>
-  );
-}
-
 export function Star3DLayer({
   stars,
   virtualPosition,
@@ -211,25 +114,128 @@ export function Star3DLayer({
   glowIntensity,
   debugColors = false,
 }: Star3DLayerProps) {
-  // Filter out Sol (we start there)
-  const visibleStars = useMemo(() => 
-    stars.filter(star => star.distance > 0),
-    [stars]
-  );
+  const groupRef = useRef<THREE.Group>(null);
   
+  // Pre-create all star meshes with instancing for performance
+  const starMeshes = useMemo(() => {
+    return stars
+      .filter(star => star.distance > 0) // Exclude Sol
+      .map(star => {
+        const rgb = hexToRgb(star.color);
+        const color = new THREE.Color(rgb.r, rgb.g, rgb.b);
+        const baseSize = getStarVisualSize(star);
+        
+        return {
+          star,
+          color,
+          baseSize,
+          // Pre-create materials
+          starMaterial: new THREE.ShaderMaterial({
+            vertexShader: star3DVertexShader,
+            fragmentShader: star3DFragmentShader,
+            uniforms: {
+              starColor: { value: color },
+              glowIntensity: { value: glowIntensity },
+              opacity: { value: 0 },
+              debugColors: { value: debugColors },
+            },
+            transparent: true,
+            depthWrite: false,
+          }),
+          glowMaterial: new THREE.ShaderMaterial({
+            vertexShader: glowVertexShader,
+            fragmentShader: glowFragmentShader,
+            uniforms: {
+              starColor: { value: color },
+              glowIntensity: { value: glowIntensity },
+              opacity: { value: 0 },
+              debugColors: { value: debugColors },
+            },
+            transparent: true,
+            depthWrite: false,
+            blending: THREE.AdditiveBlending,
+            side: THREE.DoubleSide,
+          }),
+          // Refs for the meshes
+          groupRef: { current: null as THREE.Group | null },
+          sphereRef: { current: null as THREE.Mesh | null },
+          glowRef: { current: null as THREE.Mesh | null },
+        };
+      });
+  }, [stars, glowIntensity, debugColors]);
+
+  useFrame(({ camera }) => {
+    starMeshes.forEach(({ star, baseSize, starMaterial, glowMaterial, groupRef: starGroupRef, sphereRef, glowRef }) => {
+      if (!starGroupRef.current) return;
+      
+      // Star's world position
+      const starWorldPos = new THREE.Vector3(star.position.x, star.position.y, star.position.z);
+      
+      // Vector from virtual camera to star
+      const toStar = starWorldPos.clone().sub(virtualPosition);
+      const virtualDistance = toStar.length();
+      const direction = toStar.normalize();
+      
+      // Calculate opacity: fade IN as we get close
+      let opacity = 0;
+      if (virtualDistance < fullDistance) {
+        opacity = 1;
+      } else if (virtualDistance < transitionDistance) {
+        opacity = 1 - (virtualDistance - fullDistance) / (transitionDistance - fullDistance);
+      }
+      
+      // Position the 3D star at FIXED render distance, in the direction of the star
+      // This keeps it visible and at consistent distance from camera
+      starGroupRef.current.position.copy(direction.multiplyScalar(RENDER_DISTANCE));
+      
+      // Scale based on virtual distance - closer = bigger
+      // At fullDistance, size should match the 2D projection
+      // As we get closer, it grows (inverse relationship)
+      const distanceScale = Math.max(0.1, fullDistance / Math.max(0.1, virtualDistance));
+      const finalSize = baseSize * starScale * distanceScale;
+      
+      // Update sphere scale
+      if (sphereRef.current) {
+        const sphereRadius = finalSize * 0.3;
+        sphereRef.current.scale.setScalar(sphereRadius);
+      }
+      
+      // Update glow scale and make it face camera
+      if (glowRef.current) {
+        glowRef.current.scale.setScalar(finalSize * 2);
+        glowRef.current.lookAt(camera.position);
+      }
+      
+      // Update materials
+      starMaterial.uniforms.opacity.value = opacity;
+      starMaterial.uniforms.glowIntensity.value = glowIntensity;
+      starMaterial.uniforms.debugColors.value = debugColors;
+      glowMaterial.uniforms.opacity.value = opacity;
+      glowMaterial.uniforms.glowIntensity.value = glowIntensity;
+      glowMaterial.uniforms.debugColors.value = debugColors;
+    });
+  });
+
   return (
-    <group>
-      {visibleStars.map((star, index) => (
-        <SingleStar3D
-          key={`${star.name}-${index}`}
-          star={star}
-          virtualPosition={virtualPosition}
-          transitionDistance={transitionDistance}
-          fullDistance={fullDistance}
-          starScale={starScale}
-          glowIntensity={glowIntensity}
-          debugColors={debugColors}
-        />
+    <group ref={groupRef}>
+      {starMeshes.map(({ star, starMaterial, glowMaterial, groupRef: starGroupRef, sphereRef, glowRef }, index) => (
+        <group 
+          key={`${star.name}-${index}`} 
+          ref={(el) => { starGroupRef.current = el; }}
+        >
+          <mesh 
+            ref={(el) => { sphereRef.current = el; }}
+            material={starMaterial}
+          >
+            <sphereGeometry args={[1, 16, 16]} />
+          </mesh>
+          <mesh 
+            ref={(el) => { glowRef.current = el; }}
+            material={glowMaterial}
+          >
+            <planeGeometry args={[1, 1]} />
+          </mesh>
+        </group>
       ))}
     </group>
   );
