@@ -1,10 +1,13 @@
 import { Leva } from 'leva';
 import { useState, useEffect } from 'react';
-import { StarBoxScene, useStarBoxControls, DEFAULT_CONFIG } from '@/components/starfield';
+import * as THREE from 'three';
+import { StarBoxScene, useStarBoxControls, DEFAULT_CONFIG, FlightHUD } from '@/components/starfield';
+import { ALL_STARS } from '@/lib/nearStarData';
 
 const Index = () => {
   const controls = useStarBoxControls();
   const [showHelp, setShowHelp] = useState(true);
+  const [virtualPosition, setVirtualPosition] = useState(new THREE.Vector3(0, 0, 0));
   
   // Merge controls with defaults for any missing values
   const config = { ...DEFAULT_CONFIG, ...controls };
@@ -133,18 +136,28 @@ const Index = () => {
         </div>
       </div>
       
+      {/* Flight HUD */}
+      {config.showNearStars && config.flightEnabled && (
+        <FlightHUD 
+          virtualPosition={virtualPosition}
+          stars={ALL_STARS}
+          transitionDistance={config.transitionDistance}
+          fullDistance={config.fullDistance}
+        />
+      )}
+      
       {/* Performance Stats */}
       <div className="absolute top-6 left-6 z-10">
         <div className="rounded-lg bg-card/60 px-3 py-2 backdrop-blur-sm border border-border">
           <p className="text-xs font-mono text-primary">
-            ★ {config.starCount.toLocaleString()} bg stars + 72 near stars
+            ★ {config.starCount.toLocaleString()} bg stars + {ALL_STARS.length} near stars
           </p>
         </div>
       </div>
       
       {/* 3D Scene */}
       <div className="absolute inset-0">
-        <StarBoxScene config={config} />
+        <StarBoxScene config={config} onVirtualPositionChange={setVirtualPosition} />
       </div>
     </div>
   );

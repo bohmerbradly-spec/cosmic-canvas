@@ -6,3 +6,4 @@ export { useStarBoxControls, DEFAULT_CONFIG } from './StarBoxControls';
 export { VirtualFlightControls } from './VirtualFlightControls';
 export { ProjectedStarField } from './ProjectedStarField';
 export { Star3DLayer } from './Star3DLayer';
+export { FlightHUD } from './FlightHUD';

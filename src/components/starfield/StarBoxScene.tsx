@@ -55,6 +55,7 @@ export interface StarBoxConfig {
 
 interface StarBoxSceneProps {
   config: StarBoxConfig;
+  onVirtualPositionChange?: (position: THREE.Vector3) => void;
 }
 
 interface SceneProps {
@@ -130,13 +131,14 @@ function Scene({ config, virtualPosition, velocity }: SceneProps) {
   );
 }
 
-export function StarBoxScene({ config }: StarBoxSceneProps) {
+export function StarBoxScene({ config, onVirtualPositionChange }: StarBoxSceneProps) {
   const [virtualPosition, setVirtualPosition] = useState(new THREE.Vector3(0, 0, 0));
   const [velocity, setVelocity] = useState(new THREE.Vector3(0, 0, 0));
   
   const handleVirtualPositionChange = useCallback((position: THREE.Vector3) => {
     setVirtualPosition(position);
-  }, []);
+    onVirtualPositionChange?.(position);
+  }, [onVirtualPositionChange]);
   
   const handleVelocityChange = useCallback((vel: THREE.Vector3) => {
     setVelocity(vel);

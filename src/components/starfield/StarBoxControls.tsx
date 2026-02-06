@@ -28,10 +28,10 @@ export const DEFAULT_CONFIG: StarBoxConfig = {
   autoRotateSpeed: 0.1,
   
   // Near stars (real 3D stars)
-  nearStarScale: 0.5,
-  nearStarGlow: 1.5,
-  transitionDistance: 15, // Start transition at 15 ly
-  fullDistance: 5,        // Full 3D at 5 ly
+  nearStarScale: 1.0,    // Increased for visibility
+  nearStarGlow: 2.0,     // Increased for visibility  
+  transitionDistance: 8, // Start seeing 3D at 8 ly
+  fullDistance: 2,       // Full 3D at 2 ly
   showNearStars: true,
   
   // Flight controls
