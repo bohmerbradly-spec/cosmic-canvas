@@ -15,6 +15,7 @@ interface ProjectedStarFieldProps {
   virtualPosition: THREE.Vector3;
   velocity: THREE.Vector3;
   hyperdriveStretch: number;
+  debugColors?: boolean; // Show cyan for 2D, fade to magenta near transition
 }
 
 /**
@@ -41,15 +42,15 @@ const projectedStarVertexShader = `
   uniform float fullDistance;
   uniform vec3 velocity;
   uniform float hyperdriveStretch;
+  uniform bool debugColors;
   
   varying vec3 vColor;
   varying float vBrightness;
   varying float vOpacity;
   varying float vStretchFactor;
+  varying float vTransitionFactor; // 0 = full 2D, 1 = transitioning to 3D
   
   void main() {
-    vColor = starColor;
-    
     // Vector from virtual camera position to star's world position
     vec3 toStar = worldPosition - virtualCameraPos;
     float distanceToStar = length(toStar);
@@ -61,10 +62,22 @@ const projectedStarVertexShader = `
     // Calculate opacity: fade OUT as virtual distance decreases
     if (distanceToStar < fullDistance) {
       vOpacity = 0.0;
+      vTransitionFactor = 1.0;
     } else if (distanceToStar < transitionDistance) {
       vOpacity = (distanceToStar - fullDistance) / (transitionDistance - fullDistance);
+      vTransitionFactor = 1.0 - vOpacity;
     } else {
       vOpacity = 1.0;
+      vTransitionFactor = 0.0;
+    }
+    
+    // Debug colors: cyan (2D) -> magenta (transitioning to 3D)
+    if (debugColors) {
+      vec3 cyan = vec3(0.0, 1.0, 1.0);
+      vec3 magenta = vec3(1.0, 0.0, 1.0);
+      vColor = mix(cyan, magenta, vTransitionFactor);
+    } else {
+      vColor = starColor;
     }
     
     vBrightness = brightness * vOpacity;
@@ -133,6 +146,7 @@ export function ProjectedStarField({
   virtualPosition,
   velocity,
   hyperdriveStretch,
+  debugColors = false,
 }: ProjectedStarFieldProps) {
   const pointsRef = useRef<THREE.Points>(null);
   const materialRef = useRef<THREE.ShaderMaterial>(null);
@@ -196,7 +210,8 @@ export function ProjectedStarField({
     fullDistance: { value: fullDistance },
     velocity: { value: new THREE.Vector3() },
     hyperdriveStretch: { value: hyperdriveStretch },
-  }), [skyboxRadius, transitionDistance, fullDistance, hyperdriveStretch]);
+    debugColors: { value: debugColors },
+  }), [skyboxRadius, transitionDistance, fullDistance, hyperdriveStretch, debugColors]);
   
   useEffect(() => {
     if (materialRef.current) {
@@ -204,8 +219,9 @@ export function ProjectedStarField({
       materialRef.current.uniforms.transitionDistance.value = transitionDistance;
       materialRef.current.uniforms.fullDistance.value = fullDistance;
       materialRef.current.uniforms.hyperdriveStretch.value = hyperdriveStretch;
+      materialRef.current.uniforms.debugColors.value = debugColors;
     }
-  }, [skyboxRadius, transitionDistance, fullDistance, hyperdriveStretch]);
+  }, [skyboxRadius, transitionDistance, fullDistance, hyperdriveStretch, debugColors]);
   
   useFrame((state) => {
     if (!materialRef.current) return;

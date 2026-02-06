@@ -90,6 +90,53 @@ export const NEAR_STARS: NearStarData[] = [
   { name: "Polaris", id: 8901, position: { x: 85.2, y: 380.5, z: 125.3 }, distance: 433, color: 0xfff5d0, spectralType: "F7Ib" },
 ];
 
+// Generate procedural stars for testing - spread across a larger volume
+export function generateProceduralStars(count: number, maxDistance: number): NearStarData[] {
+  const stars: NearStarData[] = [];
+  const spectralTypes = ['O', 'B', 'A', 'F', 'G', 'K', 'M'];
+  const colors: Record<string, number> = {
+    'O': 0x9bb0ff,
+    'B': 0xaaccff,
+    'A': 0xcad8ff,
+    'F': 0xfcfeff,
+    'G': 0xfff5ec,
+    'K': 0xffd7ae,
+    'M': 0xffbb7b,
+  };
+  
+  for (let i = 0; i < count; i++) {
+    // Spherical distribution
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+    const r = Math.pow(Math.random(), 0.5) * maxDistance; // Sqrt for uniform volume distribution
+    
+    const x = r * Math.sin(phi) * Math.cos(theta);
+    const y = r * Math.sin(phi) * Math.sin(theta);
+    const z = r * Math.cos(phi);
+    
+    // Bias toward redder stars (more common)
+    const spectralIndex = Math.min(6, Math.floor(Math.pow(Math.random(), 0.5) * 7));
+    const spectralType = spectralTypes[spectralIndex];
+    
+    stars.push({
+      name: `HD ${100000 + i}`,
+      id: 100000 + i,
+      position: { x, y, z },
+      distance: r,
+      color: colors[spectralType],
+      spectralType: `${spectralType}${Math.floor(Math.random() * 10)}V`,
+    });
+  }
+  
+  return stars;
+}
+
+// All stars: real catalog + procedural for testing
+export const ALL_STARS: NearStarData[] = [
+  ...NEAR_STARS,
+  ...generateProceduralStars(500, 100), // 500 more stars within 100 ly
+];
+
 // Scale factor: 1 unit = 1 light year for near space
 export const SCALE_LIGHT_YEARS = 1;
 

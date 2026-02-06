@@ -10,6 +10,7 @@ interface Star3DLayerProps {
   fullDistance: number;
   starScale: number;
   glowIntensity: number;
+  debugColors?: boolean; // Show magenta for 3D stars
 }
 
 /**
@@ -37,6 +38,7 @@ const star3DFragmentShader = `
   uniform vec3 starColor;
   uniform float glowIntensity;
   uniform float opacity;
+  uniform bool debugColors;
   
   varying vec3 vNormal;
   varying vec3 vViewPosition;
@@ -49,7 +51,10 @@ const star3DFragmentShader = `
     fresnel = pow(fresnel, 2.0);
     
     float core = 1.0 - fresnel * 0.3;
-    vec3 finalColor = starColor * core + starColor * fresnel * glowIntensity;
+    
+    // Debug: magenta for 3D stars
+    vec3 color = debugColors ? vec3(1.0, 0.0, 1.0) : starColor;
+    vec3 finalColor = color * core + color * fresnel * glowIntensity;
     
     gl_FragColor = vec4(finalColor, opacity);
   }
@@ -68,6 +73,7 @@ const glowFragmentShader = `
   uniform vec3 starColor;
   uniform float glowIntensity;
   uniform float opacity;
+  uniform bool debugColors;
   
   varying vec2 vUv;
   
@@ -83,7 +89,10 @@ const glowFragmentShader = `
     
     float alpha = (glow + halo) * glowIntensity * opacity;
     
-    gl_FragColor = vec4(starColor, alpha);
+    // Debug: magenta for 3D stars
+    vec3 color = debugColors ? vec3(1.0, 0.0, 1.0) : starColor;
+    
+    gl_FragColor = vec4(color, alpha);
   }
 `;
 
@@ -94,6 +103,7 @@ interface SingleStar3DProps {
   fullDistance: number;
   starScale: number;
   glowIntensity: number;
+  debugColors: boolean;
 }
 
 function SingleStar3D({ 
@@ -102,7 +112,8 @@ function SingleStar3D({
   transitionDistance, 
   fullDistance, 
   starScale, 
-  glowIntensity 
+  glowIntensity,
+  debugColors,
 }: SingleStar3DProps) {
   const groupRef = useRef<THREE.Group>(null);
   const glowRef = useRef<THREE.Mesh>(null);
@@ -120,11 +131,12 @@ function SingleStar3D({
         starColor: { value: color },
         glowIntensity: { value: glowIntensity },
         opacity: { value: 0 },
+        debugColors: { value: debugColors },
       },
       transparent: true,
       depthWrite: false,
     });
-  }, [color, glowIntensity]);
+  }, [color, glowIntensity, debugColors]);
   
   const glowMaterial = useMemo(() => {
     return new THREE.ShaderMaterial({
@@ -134,13 +146,14 @@ function SingleStar3D({
         starColor: { value: color },
         glowIntensity: { value: glowIntensity },
         opacity: { value: 0 },
+        debugColors: { value: debugColors },
       },
       transparent: true,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
       side: THREE.DoubleSide,
     });
-  }, [color, glowIntensity]);
+  }, [color, glowIntensity, debugColors]);
   
   useFrame(() => {
     if (!groupRef.current) return;
@@ -166,8 +179,10 @@ function SingleStar3D({
     
     starMaterial.uniforms.opacity.value = opacity;
     starMaterial.uniforms.glowIntensity.value = glowIntensity;
+    starMaterial.uniforms.debugColors.value = debugColors;
     glowMaterial.uniforms.opacity.value = opacity;
     glowMaterial.uniforms.glowIntensity.value = glowIntensity;
+    glowMaterial.uniforms.debugColors.value = debugColors;
     
     // Billboard the glow toward camera (which is at origin)
     if (glowRef.current) {
@@ -194,6 +209,7 @@ export function Star3DLayer({
   fullDistance,
   starScale,
   glowIntensity,
+  debugColors = false,
 }: Star3DLayerProps) {
   // Filter out Sol (we start there)
   const visibleStars = useMemo(() => 
@@ -212,6 +228,7 @@ export function Star3DLayer({
           fullDistance={fullDistance}
           starScale={starScale}
           glowIntensity={glowIntensity}
+          debugColors={debugColors}
         />
       ))}
     </group>

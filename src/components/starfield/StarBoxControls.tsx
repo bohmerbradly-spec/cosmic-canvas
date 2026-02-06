@@ -30,8 +30,8 @@ export const DEFAULT_CONFIG: StarBoxConfig = {
   // Near stars (real 3D stars)
   nearStarScale: 0.5,
   nearStarGlow: 1.5,
-  transitionDistance: 50,
-  fullDistance: 30,
+  transitionDistance: 15, // Start transition at 15 ly
+  fullDistance: 5,        // Full 3D at 5 ly
   showNearStars: true,
   
   // Flight controls
@@ -40,6 +40,9 @@ export const DEFAULT_CONFIG: StarBoxConfig = {
   
   // Hyperdrive
   hyperdriveStretch: 10,
+  
+  // Debug
+  debugColors: true, // Show cyan->magenta transition for testing
 };
 
 const PRESETS = {
@@ -118,8 +121,8 @@ export function useStarBoxControls() {
       showNearStars: { value: DEFAULT_CONFIG.showNearStars, label: 'Show Near Stars' },
       nearStarScale: { value: DEFAULT_CONFIG.nearStarScale, min: 0.1, max: 2, step: 0.1, label: 'Star Scale' },
       nearStarGlow: { value: DEFAULT_CONFIG.nearStarGlow, min: 0, max: 3, step: 0.1, label: 'Glow Intensity' },
-      transitionDistance: { value: DEFAULT_CONFIG.transitionDistance, min: 10, max: 200, step: 5, label: 'Transition Start' },
-      fullDistance: { value: DEFAULT_CONFIG.fullDistance, min: 5, max: 100, step: 5, label: 'Full 3D Distance' },
+      transitionDistance: { value: DEFAULT_CONFIG.transitionDistance, min: 5, max: 50, step: 1, label: 'Transition Start (ly)' },
+      fullDistance: { value: DEFAULT_CONFIG.fullDistance, min: 1, max: 20, step: 1, label: 'Full 3D Distance (ly)' },
     }),
     'Flight Controls': folder({
       flightEnabled: { value: DEFAULT_CONFIG.flightEnabled, label: 'Enable Flight' },
@@ -127,6 +130,9 @@ export function useStarBoxControls() {
       hyperdriveStretch: { value: DEFAULT_CONFIG.hyperdriveStretch, min: 1, max: 50, step: 1, label: 'Hyperdrive Stretch' },
       autoRotate: { value: DEFAULT_CONFIG.autoRotate, label: 'Auto Rotate (when flight off)' },
       autoRotateSpeed: { value: DEFAULT_CONFIG.autoRotateSpeed, min: 0, max: 1, step: 0.05, label: 'Rotate Speed' },
+    }),
+    'Debug': folder({
+      debugColors: { value: DEFAULT_CONFIG.debugColors, label: 'Debug Colors (Cyan=2D, Magenta=3D)' },
     }),
     'Presets': folder({
       'Deep Space': button(() => applyPreset('Deep Space')),

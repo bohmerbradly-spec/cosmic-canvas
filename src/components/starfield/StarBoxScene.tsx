@@ -7,7 +7,7 @@ import { SkyBox } from './SkyBox';
 import { VirtualFlightControls } from './VirtualFlightControls';
 import { ProjectedStarField } from './ProjectedStarField';
 import { Star3DLayer } from './Star3DLayer';
-import { NEAR_STARS } from '@/lib/nearStarData';
+import { ALL_STARS } from '@/lib/nearStarData';
 
 export interface StarBoxConfig {
   // Star field settings
@@ -48,6 +48,9 @@ export interface StarBoxConfig {
   
   // Hyperdrive settings
   hyperdriveStretch: number;
+  
+  // Debug settings
+  debugColors: boolean;
 }
 
 interface StarBoxSceneProps {
@@ -91,7 +94,7 @@ function Scene({ config, virtualPosition, velocity }: SceneProps) {
       */}
       {config.showNearStars && (
         <ProjectedStarField
-          stars={NEAR_STARS}
+          stars={ALL_STARS}
           skyboxRadius={config.starRadius}
           transitionDistance={config.transitionDistance}
           fullDistance={config.fullDistance}
@@ -102,6 +105,7 @@ function Scene({ config, virtualPosition, velocity }: SceneProps) {
           virtualPosition={virtualPosition}
           velocity={velocity}
           hyperdriveStretch={config.hyperdriveStretch}
+          debugColors={config.debugColors}
         />
       )}
       
@@ -113,12 +117,13 @@ function Scene({ config, virtualPosition, velocity }: SceneProps) {
       */}
       {config.showNearStars && (
         <Star3DLayer
-          stars={NEAR_STARS}
+          stars={ALL_STARS}
           virtualPosition={virtualPosition}
           transitionDistance={config.transitionDistance}
           fullDistance={config.fullDistance}
           starScale={config.nearStarScale}
           glowIntensity={config.nearStarGlow}
+          debugColors={config.debugColors}
         />
       )}
     </>
