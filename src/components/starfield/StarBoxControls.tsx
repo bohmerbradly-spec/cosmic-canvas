@@ -1,5 +1,6 @@
 import { useControls, folder, button } from 'leva';
 import { StarBoxConfig } from './StarBoxScene';
+import { DEFAULT_ATMOSPHERE_CONFIG, DEFAULT_CLOUD_CONFIG } from '@/components/atmosphere';
 
 export const DEFAULT_CONFIG: StarBoxConfig = {
   // Star field
@@ -28,10 +29,10 @@ export const DEFAULT_CONFIG: StarBoxConfig = {
   autoRotateSpeed: 0.1,
   
   // Near stars (real 3D stars)
-  nearStarScale: 1.0,    // Increased for visibility
-  nearStarGlow: 2.0,     // Increased for visibility  
-  transitionDistance: 8, // Start seeing 3D at 8 ly
-  fullDistance: 2,       // Full 3D at 2 ly
+  nearStarScale: 1.0,
+  nearStarGlow: 2.0,
+  transitionDistance: 8,
+  fullDistance: 2,
   showNearStars: true,
   
   // Flight controls
@@ -42,7 +43,15 @@ export const DEFAULT_CONFIG: StarBoxConfig = {
   hyperdriveStretch: 10,
   
   // Debug
-  debugColors: true, // Show cyan->magenta transition for testing
+  debugColors: true,
+  
+  // Atmosphere
+  atmosphereEnabled: false,
+  atmosphereConfig: DEFAULT_ATMOSPHERE_CONFIG,
+  
+  // Clouds
+  cloudsEnabled: true,
+  cloudConfig: DEFAULT_CLOUD_CONFIG,
 };
 
 const PRESETS = {
@@ -134,6 +143,26 @@ export function useStarBoxControls() {
     'Debug': folder({
       debugColors: { value: DEFAULT_CONFIG.debugColors, label: 'Debug Colors (Cyan=2D, Magenta=3D)' },
     }),
+    'Atmospheric Sky': folder({
+      atmosphereEnabled: { value: DEFAULT_CONFIG.atmosphereEnabled, label: 'Enable Atmosphere' },
+      sunElevation: { value: DEFAULT_CONFIG.atmosphereConfig.sunElevation, min: -0.5, max: Math.PI / 2, step: 0.01, label: 'Sun Elevation' },
+      sunAzimuth: { value: DEFAULT_CONFIG.atmosphereConfig.sunAzimuth, min: 0, max: Math.PI * 2, step: 0.01, label: 'Sun Azimuth' },
+      sunIntensity: { value: DEFAULT_CONFIG.atmosphereConfig.sunIntensity, min: 0, max: 5, step: 0.1, label: 'Sun Intensity' },
+      rayleighCoefficient: { value: DEFAULT_CONFIG.atmosphereConfig.rayleighCoefficient, min: 0, max: 5, step: 0.1, label: 'Rayleigh' },
+      mieCoefficient: { value: DEFAULT_CONFIG.atmosphereConfig.mieCoefficient, min: 0, max: 0.1, step: 0.001, label: 'Mie' },
+      turbidity: { value: DEFAULT_CONFIG.atmosphereConfig.turbidity, min: 0, max: 10, step: 0.1, label: 'Turbidity' },
+      autoTime: { value: DEFAULT_CONFIG.atmosphereConfig.autoTime, label: 'Auto Time Animation' },
+      timeSpeed: { value: DEFAULT_CONFIG.atmosphereConfig.timeSpeed, min: 0, max: 2, step: 0.01, label: 'Time Speed' },
+    }),
+    'Volumetric Clouds': folder({
+      cloudsEnabled: { value: DEFAULT_CONFIG.cloudsEnabled, label: 'Enable Clouds' },
+      cloudCoverage: { value: DEFAULT_CONFIG.cloudConfig.coverage, min: 0, max: 1, step: 0.05, label: 'Coverage' },
+      cloudDensity: { value: DEFAULT_CONFIG.cloudConfig.density, min: 0, max: 3, step: 0.1, label: 'Density' },
+      cloudWindSpeed: { value: DEFAULT_CONFIG.cloudConfig.windSpeed, min: 0, max: 0.2, step: 0.01, label: 'Wind Speed' },
+      cloudEvolution: { value: DEFAULT_CONFIG.cloudConfig.evolutionSpeed, min: 0, max: 1, step: 0.05, label: 'Evolution Speed' },
+      cloudSilverLining: { value: DEFAULT_CONFIG.cloudConfig.silverLining, min: 0, max: 2, step: 0.1, label: 'Silver Lining' },
+      cloudAmbient: { value: DEFAULT_CONFIG.cloudConfig.ambientLight, min: 0, max: 1, step: 0.05, label: 'Ambient Light' },
+    }),
     'Presets': folder({
       'Deep Space': button(() => applyPreset('Deep Space')),
       'Bright Night': button(() => applyPreset('Bright Night')),
@@ -147,5 +176,44 @@ export function useStarBoxControls() {
     console.log('Apply preset:', _presetName);
   }
 
-  return controls as StarBoxConfig;
+  // Build the atmosphere config from individual controls
+  const atmosphereConfig = {
+    sunElevation: (controls as any).sunElevation ?? DEFAULT_CONFIG.atmosphereConfig.sunElevation,
+    sunAzimuth: (controls as any).sunAzimuth ?? DEFAULT_CONFIG.atmosphereConfig.sunAzimuth,
+    sunIntensity: (controls as any).sunIntensity ?? DEFAULT_CONFIG.atmosphereConfig.sunIntensity,
+    rayleighCoefficient: (controls as any).rayleighCoefficient ?? DEFAULT_CONFIG.atmosphereConfig.rayleighCoefficient,
+    mieCoefficient: (controls as any).mieCoefficient ?? DEFAULT_CONFIG.atmosphereConfig.mieCoefficient,
+    mieDirectionalG: DEFAULT_CONFIG.atmosphereConfig.mieDirectionalG,
+    turbidity: (controls as any).turbidity ?? DEFAULT_CONFIG.atmosphereConfig.turbidity,
+    groundColor: DEFAULT_CONFIG.atmosphereConfig.groundColor,
+    timeOfDay: DEFAULT_CONFIG.atmosphereConfig.timeOfDay,
+    autoTime: (controls as any).autoTime ?? DEFAULT_CONFIG.atmosphereConfig.autoTime,
+    timeSpeed: (controls as any).timeSpeed ?? DEFAULT_CONFIG.atmosphereConfig.timeSpeed,
+  };
+
+  // Build cloud config from individual controls
+  const cloudConfig = {
+    coverage: (controls as any).cloudCoverage ?? DEFAULT_CONFIG.cloudConfig.coverage,
+    density: (controls as any).cloudDensity ?? DEFAULT_CONFIG.cloudConfig.density,
+    altitude: DEFAULT_CONFIG.cloudConfig.altitude,
+    thickness: DEFAULT_CONFIG.cloudConfig.thickness,
+    baseColor: DEFAULT_CONFIG.cloudConfig.baseColor,
+    topColor: DEFAULT_CONFIG.cloudConfig.topColor,
+    shadowColor: DEFAULT_CONFIG.cloudConfig.shadowColor,
+    windSpeed: (controls as any).cloudWindSpeed ?? DEFAULT_CONFIG.cloudConfig.windSpeed,
+    windDirection: DEFAULT_CONFIG.cloudConfig.windDirection,
+    evolutionSpeed: (controls as any).cloudEvolution ?? DEFAULT_CONFIG.cloudConfig.evolutionSpeed,
+    sunInfluence: DEFAULT_CONFIG.cloudConfig.sunInfluence,
+    ambientLight: (controls as any).cloudAmbient ?? DEFAULT_CONFIG.cloudConfig.ambientLight,
+    silverLining: (controls as any).cloudSilverLining ?? DEFAULT_CONFIG.cloudConfig.silverLining,
+    steps: DEFAULT_CONFIG.cloudConfig.steps,
+    noiseScale: DEFAULT_CONFIG.cloudConfig.noiseScale,
+    detailScale: DEFAULT_CONFIG.cloudConfig.detailScale,
+  };
+
+  return {
+    ...controls,
+    atmosphereConfig,
+    cloudConfig,
+  } as StarBoxConfig;
 }
