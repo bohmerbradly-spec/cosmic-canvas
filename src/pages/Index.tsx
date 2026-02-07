@@ -3,20 +3,40 @@ import { useState, useEffect } from 'react';
 import * as THREE from 'three';
 import { StarBoxScene, useStarBoxControls, DEFAULT_CONFIG, FlightHUD } from '@/components/starfield';
 import { ALL_STARS } from '@/lib/nearStarData';
+import { useWebGLSupport, WebGLFallback } from '@/components/starfield/WebGLFallback';
 
 const Index = () => {
   const controls = useStarBoxControls();
   const [showHelp, setShowHelp] = useState(true);
   const [virtualPosition, setVirtualPosition] = useState(new THREE.Vector3(0, 0, 0));
+  const webglSupported = useWebGLSupport();
   
   // Merge controls with defaults for any missing values
   const config = { ...DEFAULT_CONFIG, ...controls };
 
-  // Hide help after a few seconds
+  // Hide help after a few seconds - must be before conditional returns
   useEffect(() => {
     const timer = setTimeout(() => setShowHelp(false), 8000);
     return () => clearTimeout(timer);
   }, []);
+
+  // Show fallback if WebGL check complete and not supported
+  if (webglSupported === false) {
+    return (
+      <div className="h-screen w-screen">
+        <WebGLFallback />
+      </div>
+    );
+  }
+
+  // Show loading while checking WebGL support
+  if (webglSupported === null) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center bg-background">
+        <div className="text-muted-foreground">Loading...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="relative h-screen w-screen overflow-hidden bg-background">
