@@ -8,6 +8,7 @@ import { VirtualFlightControls } from './VirtualFlightControls';
 import { ProjectedStarField } from './ProjectedStarField';
 import { Star3DLayer } from './Star3DLayer';
 import { ALL_STARS } from '@/lib/nearStarData';
+import { AtmosphericSky, AtmosphericSkyConfig, CloudLayer, CloudLayerConfig, DEFAULT_CLOUD_CONFIG } from '@/components/atmosphere';
 
 export interface StarBoxConfig {
   // Star field settings
@@ -51,6 +52,14 @@ export interface StarBoxConfig {
   
   // Debug settings
   debugColors: boolean;
+  
+  // Atmosphere settings
+  atmosphereEnabled: boolean;
+  atmosphereConfig: AtmosphericSkyConfig;
+  
+  // Cloud settings
+  cloudsEnabled: boolean;
+  cloudConfig: CloudLayerConfig;
 }
 
 interface StarBoxSceneProps {
@@ -65,27 +74,53 @@ interface SceneProps {
 }
 
 function Scene({ config, virtualPosition, velocity }: SceneProps) {
+  // Compute sun direction from atmosphere config
+  const sunDirection = new THREE.Vector3(
+    Math.cos(config.atmosphereConfig.sunElevation) * Math.sin(config.atmosphereConfig.sunAzimuth),
+    Math.sin(config.atmosphereConfig.sunElevation),
+    Math.cos(config.atmosphereConfig.sunElevation) * Math.cos(config.atmosphereConfig.sunAzimuth)
+  ).normalize();
+  
   return (
     <>
       {/* 
-        Fixed skybox at origin - never moves.
-        Camera is also at origin - only rotates.
+        Atmospheric sky with Rayleigh/Mie scattering
+        OR Fixed skybox gradient - mutually exclusive
       */}
-      <SkyBox
-        radius={config.starRadius + 5}
-        topColor={config.skyTopColor}
-        bottomColor={config.skyBottomColor}
-        atmosphereIntensity={config.atmosphereIntensity}
-      />
+      {config.atmosphereEnabled ? (
+        <AtmosphericSky
+          config={config.atmosphereConfig}
+          radius={config.starRadius + 5}
+        />
+      ) : (
+        <SkyBox
+          radius={config.starRadius + 5}
+          topColor={config.skyTopColor}
+          bottomColor={config.skyBottomColor}
+          atmosphereIntensity={config.atmosphereIntensity}
+        />
+      )}
       
-      {/* Milky Way on fixed skybox */}
-      <MilkyWay
-        radius={config.starRadius + 2}
-        intensity={config.milkyWayIntensity}
-        bandWidth={config.milkyWayBandWidth}
-        dustLanes={config.dustLanes}
-        coreIntensity={config.milkyWayCoreIntensity}
-      />
+      {/* Volumetric Cloud Layer */}
+      {config.atmosphereEnabled && config.cloudsEnabled && (
+        <CloudLayer
+          config={config.cloudConfig}
+          sunDirection={sunDirection}
+          sunElevation={config.atmosphereConfig.sunElevation}
+          radius={config.starRadius + 3}
+        />
+      )}
+      
+      {/* Milky Way on fixed skybox - only show in night mode */}
+      {!config.atmosphereEnabled && (
+        <MilkyWay
+          radius={config.starRadius + 2}
+          intensity={config.milkyWayIntensity}
+          bandWidth={config.milkyWayBandWidth}
+          dustLanes={config.dustLanes}
+          coreIntensity={config.milkyWayCoreIntensity}
+        />
+      )}
       
       {/* 
         Projected 2D Stars on skybox.
