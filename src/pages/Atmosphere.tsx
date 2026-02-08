@@ -1,26 +1,22 @@
 import { Leva } from 'leva';
 import { useState, useEffect } from 'react';
 import * as THREE from 'three';
-import { StarBoxScene, useStarBoxControls, DEFAULT_CONFIG, FlightHUD } from '@/components/starfield';
-import { ALL_STARS } from '@/lib/nearStarData';
+import { AtmosphereScene } from '@/components/atmosphere/AtmosphereScene';
+import { useAtmosphereSceneControls } from '@/components/atmosphere/AtmosphereSceneControls';
 import { useWebGLSupport, WebGLFallback } from '@/components/starfield/WebGLFallback';
 
-const Index = () => {
-  const controls = useStarBoxControls();
+const Atmosphere = () => {
+  const controls = useAtmosphereSceneControls();
   const [showHelp, setShowHelp] = useState(true);
-  const [virtualPosition, setVirtualPosition] = useState(new THREE.Vector3(0, 0, 0));
+  const [virtualPosition, setVirtualPosition] = useState(new THREE.Vector3(0, 500, 0));
   const webglSupported = useWebGLSupport();
   
-  // Merge controls with defaults for any missing values
-  const config = { ...DEFAULT_CONFIG, ...controls };
-
-  // Hide help after a few seconds - must be before conditional returns
+  // Hide help after a few seconds
   useEffect(() => {
     const timer = setTimeout(() => setShowHelp(false), 8000);
     return () => clearTimeout(timer);
   }, []);
-
-  // Show fallback if WebGL check complete and not supported
+  
   if (webglSupported === false) {
     return (
       <div className="h-screen w-screen">
@@ -28,8 +24,7 @@ const Index = () => {
       </div>
     );
   }
-
-  // Show loading while checking WebGL support
+  
   if (webglSupported === null) {
     return (
       <div className="flex h-screen w-screen items-center justify-center bg-background">
@@ -37,7 +32,7 @@ const Index = () => {
       </div>
     );
   }
-
+  
   return (
     <div className="relative h-screen w-screen overflow-hidden bg-background">
       {/* Control Panel */}
@@ -116,7 +111,7 @@ const Index = () => {
       />
       
       {/* Flight Controls Help */}
-      {config.flightEnabled && showHelp && (
+      {controls.flightEnabled && showHelp && (
         <div className="absolute top-6 left-1/2 -translate-x-1/2 z-10">
           <div className="rounded-lg bg-card/90 px-6 py-4 backdrop-blur-sm border border-border animate-pulse">
             <p className="text-sm text-primary font-medium text-center">
@@ -130,63 +125,37 @@ const Index = () => {
       <div className="absolute bottom-6 left-6 z-10 max-w-md">
         <div className="rounded-lg bg-card/80 p-4 backdrop-blur-sm border border-border">
           <h1 className="text-lg font-semibold text-foreground mb-1">
-            HyperReal StarBox System
+            Atmospheric Cloud System
           </h1>
           <p className="text-sm text-muted-foreground">
-            3D starfield with {config.showNearStars ? '72 real nearby stars from Hipparcos catalog' : 'procedural stars'}. 
-            Near stars transition from 2D skybox to 3D as you approach.
+            2D-3D hybrid clouds with physically-based Rayleigh/Mie scattering sky.
+            Clouds transition from skybox projections to volumetric 3D as you approach.
           </p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-              <span className="h-2 w-2 rounded-full bg-star-o" /> O-type
-            </span>
-            <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-              <span className="h-2 w-2 rounded-full bg-star-a" /> A-type
-            </span>
-            <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-              <span className="h-2 w-2 rounded-full bg-star-g" /> G-type
-            </span>
-            <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-              <span className="h-2 w-2 rounded-full bg-star-k" /> K-type
-            </span>
-            <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-              <span className="h-2 w-2 rounded-full bg-star-m" /> M-type
-            </span>
+          <div className="mt-3 text-xs text-muted-foreground">
+            <p>Altitude: {Math.round(virtualPosition.y)}m</p>
           </div>
         </div>
       </div>
       
-      {/* Flight HUD */}
-      {config.showNearStars && config.flightEnabled && (
-        <FlightHUD 
-          virtualPosition={virtualPosition}
-          stars={ALL_STARS}
-          transitionDistance={config.transitionDistance}
-          fullDistance={config.fullDistance}
-        />
-      )}
-      
-      {/* Navigation & Stats */}
-      <div className="absolute top-6 left-6 z-10 flex gap-3">
+      {/* Navigation */}
+      <div className="absolute top-6 left-6 z-10">
         <a 
-          href="/atmosphere" 
+          href="/" 
           className="rounded-lg bg-card/80 px-4 py-2 backdrop-blur-sm border border-border text-sm text-primary hover:bg-card/90 transition-colors"
         >
-          Atmosphere →
+          ← Back to Stars
         </a>
-        <div className="rounded-lg bg-card/60 px-3 py-2 backdrop-blur-sm border border-border">
-          <p className="text-xs font-mono text-primary">
-            ★ {config.starCount.toLocaleString()} bg stars + {ALL_STARS.length} near stars
-          </p>
-        </div>
       </div>
       
       {/* 3D Scene */}
       <div className="absolute inset-0">
-        <StarBoxScene config={config} onVirtualPositionChange={setVirtualPosition} />
+        <AtmosphereScene 
+          config={controls} 
+          onVirtualPositionChange={setVirtualPosition}
+        />
       </div>
     </div>
   );
 };
 
-export default Index;
+export default Atmosphere;
