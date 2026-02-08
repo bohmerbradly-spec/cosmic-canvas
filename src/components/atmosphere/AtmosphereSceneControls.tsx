@@ -1,12 +1,12 @@
-import { useControls, folder } from 'leva';
+import { useControls } from 'leva';
 import { DEFAULT_ATMOSPHERE_SCENE_CONFIG, AtmosphereSceneConfig } from './AtmosphereScene';
 import { DEFAULT_ATMOSPHERE_CONFIG } from './AtmosphericSky';
-import { DEFAULT_CLOUD_CONFIG } from './CloudLayer';
+import { DEFAULT_VOLUMETRIC_CLOUD_CONFIG } from './VolumetricClouds';
 
 export function useAtmosphereSceneControls(): AtmosphereSceneConfig {
-  const atmosphere = useControls('Atmosphere', {
+  const atmosphere = useControls('Sun & Atmosphere', {
     sunElevation: {
-      value: DEFAULT_ATMOSPHERE_CONFIG.sunElevation,
+      value: 0.15, // Low for good golden hour lighting
       min: -0.2,
       max: Math.PI / 2,
       step: 0.01,
@@ -33,44 +33,69 @@ export function useAtmosphereSceneControls(): AtmosphereSceneConfig {
       step: 0.1,
       label: 'Rayleigh',
     },
-    mieCoeff: {
-      value: DEFAULT_ATMOSPHERE_CONFIG.mieCoefficient,
-      min: 0.001,
-      max: 0.1,
-      step: 0.001,
-      label: 'Mie',
+    turbidity: {
+      value: DEFAULT_ATMOSPHERE_CONFIG.turbidity,
+      min: 0.5,
+      max: 10,
+      step: 0.1,
+      label: 'Turbidity',
     },
   });
   
-  const clouds = useControls('Clouds', {
+  const clouds = useControls('Volumetric Clouds', {
     enabled: { value: true, label: 'Enable Clouds' },
     coverage: {
-      value: DEFAULT_CLOUD_CONFIG.coverage,
+      value: DEFAULT_VOLUMETRIC_CLOUD_CONFIG.coverage,
       min: 0,
       max: 1,
       step: 0.05,
       label: 'Coverage',
     },
     density: {
-      value: DEFAULT_CLOUD_CONFIG.density,
+      value: DEFAULT_VOLUMETRIC_CLOUD_CONFIG.density,
       min: 0.1,
       max: 2,
       step: 0.1,
       label: 'Density',
     },
-    transitionDist: {
-      value: DEFAULT_ATMOSPHERE_SCENE_CONFIG.cloudTransitionDistance,
-      min: 1000,
-      max: 10000,
-      step: 500,
-      label: 'Transition Distance',
-    },
-    fullDist: {
-      value: DEFAULT_ATMOSPHERE_SCENE_CONFIG.cloudFullDistance,
-      min: 100,
-      max: 3000,
+    altitude: {
+      value: DEFAULT_VOLUMETRIC_CLOUD_CONFIG.cloudAltitude,
+      min: 500,
+      max: 5000,
       step: 100,
-      label: 'Full 3D Distance',
+      label: 'Altitude',
+    },
+    thickness: {
+      value: DEFAULT_VOLUMETRIC_CLOUD_CONFIG.cloudThickness,
+      min: 200,
+      max: 2000,
+      step: 100,
+      label: 'Thickness',
+    },
+    raySteps: {
+      value: DEFAULT_VOLUMETRIC_CLOUD_CONFIG.raySteps,
+      min: 16,
+      max: 64,
+      step: 4,
+      label: 'Quality (steps)',
+    },
+  });
+  
+  const effects = useControls('Effects', {
+    godRaysEnabled: { value: true, label: 'God Rays' },
+    godRaysIntensity: {
+      value: 1.0,
+      min: 0,
+      max: 3,
+      step: 0.1,
+      label: 'God Rays Intensity',
+    },
+    cloudShadows: {
+      value: 0.5,
+      min: 0,
+      max: 1,
+      step: 0.1,
+      label: 'Cloud Shadow Density',
     },
   });
   
@@ -78,7 +103,7 @@ export function useAtmosphereSceneControls(): AtmosphereSceneConfig {
     terrainEnabled: { value: true, label: 'Show Terrain' },
     flightEnabled: { value: true, label: 'Flight Controls' },
     flightSpeed: {
-      value: DEFAULT_ATMOSPHERE_SCENE_CONFIG.flightSpeed,
+      value: 100,
       min: 10,
       max: 500,
       step: 10,
@@ -93,16 +118,20 @@ export function useAtmosphereSceneControls(): AtmosphereSceneConfig {
       sunAzimuth: atmosphere.sunAzimuth,
       sunIntensity: atmosphere.sunIntensity,
       rayleighCoefficient: atmosphere.rayleighCoeff,
-      mieCoefficient: atmosphere.mieCoeff,
+      turbidity: atmosphere.turbidity,
     },
     cloudsEnabled: clouds.enabled,
     cloudConfig: {
-      ...DEFAULT_CLOUD_CONFIG,
+      ...DEFAULT_VOLUMETRIC_CLOUD_CONFIG,
       coverage: clouds.coverage,
       density: clouds.density,
+      cloudAltitude: clouds.altitude,
+      cloudThickness: clouds.thickness,
+      raySteps: clouds.raySteps,
     },
-    cloudTransitionDistance: clouds.transitionDist,
-    cloudFullDistance: clouds.fullDist,
+    godRaysEnabled: effects.godRaysEnabled,
+    godRaysIntensity: effects.godRaysIntensity,
+    cloudShadowDensity: effects.cloudShadows,
     terrainEnabled: scene.terrainEnabled,
     flightEnabled: scene.flightEnabled,
     flightSpeed: scene.flightSpeed,
