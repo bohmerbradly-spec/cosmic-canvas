@@ -8,7 +8,7 @@ import { useWebGLSupport, WebGLFallback } from '@/components/starfield/WebGLFall
 const Atmosphere = () => {
   const controls = useAtmosphereSceneControls();
   const [showHelp, setShowHelp] = useState(true);
-  const [virtualPosition, setVirtualPosition] = useState(new THREE.Vector3(0, 500, 0));
+  const [virtualPosition, setVirtualPosition] = useState(new THREE.Vector3(0, 1000, 0));
   const webglSupported = useWebGLSupport();
   
   // Hide help after a few seconds
@@ -45,14 +45,14 @@ const Atmosphere = () => {
             elevation1: 'hsl(230, 20%, 8%)',
             elevation2: 'hsl(230, 20%, 10%)',
             elevation3: 'hsl(230, 15%, 15%)',
-            accent1: 'hsl(200, 80%, 55%)',
-            accent2: 'hsl(200, 80%, 60%)',
-            accent3: 'hsl(200, 80%, 65%)',
+            accent1: 'hsl(30, 80%, 55%)',
+            accent2: 'hsl(30, 80%, 60%)',
+            accent3: 'hsl(30, 80%, 65%)',
             highlight1: 'hsl(210, 20%, 95%)',
             highlight2: 'hsl(210, 10%, 80%)',
             highlight3: 'hsl(210, 10%, 60%)',
-            vivid1: 'hsl(260, 60%, 55%)',
-            folderWidgetColor: 'hsl(200, 80%, 60%)',
+            vivid1: 'hsl(40, 60%, 55%)',
+            folderWidgetColor: 'hsl(30, 80%, 60%)',
             folderTextColor: 'hsl(210, 20%, 95%)',
             toolTipBackground: 'hsl(230, 20%, 12%)',
             toolTipText: 'hsl(210, 20%, 95%)',
@@ -115,7 +115,7 @@ const Atmosphere = () => {
         <div className="absolute top-6 left-1/2 -translate-x-1/2 z-10">
           <div className="rounded-lg bg-card/90 px-6 py-4 backdrop-blur-sm border border-border animate-pulse">
             <p className="text-sm text-primary font-medium text-center">
-              Click to enable mouse look • WASD to fly • Space/Shift for up/down • Q to boost
+              Click to enable mouse look • WASD to fly • Space/Shift for up/down • Q to boost • H for hyperdrive
             </p>
           </div>
         </div>
@@ -125,14 +125,14 @@ const Atmosphere = () => {
       <div className="absolute bottom-6 left-6 z-10 max-w-md">
         <div className="rounded-lg bg-card/80 p-4 backdrop-blur-sm border border-border">
           <h1 className="text-lg font-semibold text-foreground mb-1">
-            Atmospheric Cloud System
+            HyperReal Atmospheric System
           </h1>
           <p className="text-sm text-muted-foreground">
-            2D-3D hybrid clouds with physically-based Rayleigh/Mie scattering sky.
-            Clouds transition from skybox projections to volumetric 3D as you approach.
+            Physically-based volumetric clouds with raymarched self-shadowing, 
+            god rays, and Rayleigh/Mie scattering sky. Terrain parallax with cloud shadows.
           </p>
-          <div className="mt-3 text-xs text-muted-foreground">
-            <p>Altitude: {Math.round(virtualPosition.y)}m</p>
+          <div className="mt-3 text-xs text-muted-foreground font-mono">
+            <p>Altitude: {Math.round(virtualPosition.y)}m | XZ: ({Math.round(virtualPosition.x)}, {Math.round(virtualPosition.z)})</p>
           </div>
         </div>
       </div>

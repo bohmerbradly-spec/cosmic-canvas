@@ -1,14 +1,13 @@
 import { Canvas } from '@react-three/fiber';
 import { PerspectiveCamera } from '@react-three/drei';
 import { Suspense, useState, useCallback, useRef } from 'react';
+import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { AtmosphericSky, AtmosphericSkyConfig, DEFAULT_ATMOSPHERE_CONFIG } from './AtmosphericSky';
-import { ProjectedCloudField } from './ProjectedCloudField';
-import { Cloud3DLayer } from './Cloud3DLayer';
-import { TerrainLayer } from './TerrainLayer';
-import { CloudLayerConfig, DEFAULT_CLOUD_CONFIG } from './CloudLayer';
+import { VolumetricClouds, VolumetricCloudConfig, DEFAULT_VOLUMETRIC_CLOUD_CONFIG } from './VolumetricClouds';
+import { GodRays } from './GodRays';
+import { ParallaxTerrain } from './ParallaxTerrain';
 import { VirtualFlightControls } from '@/components/starfield/VirtualFlightControls';
-import { ALL_CLOUDS } from '@/lib/cloudData';
 
 export interface AtmosphereSceneConfig {
   // Atmosphere
@@ -16,9 +15,12 @@ export interface AtmosphereSceneConfig {
   
   // Clouds
   cloudsEnabled: boolean;
-  cloudConfig: CloudLayerConfig;
-  cloudTransitionDistance: number;
-  cloudFullDistance: number;
+  cloudConfig: VolumetricCloudConfig;
+  
+  // Effects
+  godRaysEnabled: boolean;
+  godRaysIntensity: number;
+  cloudShadowDensity: number;
   
   // Terrain
   terrainEnabled: boolean;
@@ -34,12 +36,13 @@ export interface AtmosphereSceneConfig {
 export const DEFAULT_ATMOSPHERE_SCENE_CONFIG: AtmosphereSceneConfig = {
   atmosphereConfig: DEFAULT_ATMOSPHERE_CONFIG,
   cloudsEnabled: true,
-  cloudConfig: DEFAULT_CLOUD_CONFIG,
-  cloudTransitionDistance: 5000,
-  cloudFullDistance: 1000,
+  cloudConfig: DEFAULT_VOLUMETRIC_CLOUD_CONFIG,
+  godRaysEnabled: true,
+  godRaysIntensity: 1.0,
+  cloudShadowDensity: 0.5,
   terrainEnabled: true,
   flightEnabled: true,
-  flightSpeed: 50,
+  flightSpeed: 100,
   skyboxRadius: 10000,
 };
 
@@ -51,11 +54,9 @@ interface AtmosphereSceneProps {
 interface SceneContentProps {
   config: AtmosphereSceneConfig;
   virtualPosition: THREE.Vector3;
-  velocity: THREE.Vector3;
-  windOffset: THREE.Vector2;
 }
 
-function SceneContent({ config, virtualPosition, velocity, windOffset }: SceneContentProps) {
+function SceneContent({ config, virtualPosition }: SceneContentProps) {
   // Compute sun direction from atmosphere config
   const sunDirection = new THREE.Vector3(
     Math.cos(config.atmosphereConfig.sunElevation) * Math.sin(config.atmosphereConfig.sunAzimuth),
@@ -71,38 +72,35 @@ function SceneContent({ config, virtualPosition, velocity, windOffset }: SceneCo
         radius={config.skyboxRadius}
       />
       
-      {/* Terrain */}
+      {/* Volumetric Raymarched Clouds */}
+      {config.cloudsEnabled && (
+        <VolumetricClouds
+          config={config.cloudConfig}
+          sunDirection={sunDirection}
+          sunElevation={config.atmosphereConfig.sunElevation}
+          virtualPosition={virtualPosition}
+          radius={config.skyboxRadius * 0.95}
+        />
+      )}
+      
+      {/* God Rays / Crepuscular Rays */}
+      {config.godRaysEnabled && (
+        <GodRays
+          sunDirection={sunDirection}
+          sunElevation={config.atmosphereConfig.sunElevation}
+          radius={config.skyboxRadius * 0.9}
+          intensity={config.godRaysIntensity}
+        />
+      )}
+      
+      {/* Parallax Terrain with Cloud Shadows */}
       {config.terrainEnabled && (
-        <TerrainLayer
+        <ParallaxTerrain
           sunDirection={sunDirection}
           sunElevation={config.atmosphereConfig.sunElevation}
+          virtualPosition={virtualPosition}
           radius={config.skyboxRadius * 0.5}
-        />
-      )}
-      
-      {/* 2D Projected Clouds on Skybox */}
-      {config.cloudsEnabled && (
-        <ProjectedCloudField
-          clouds={ALL_CLOUDS}
-          skyboxRadius={config.skyboxRadius * 0.8}
-          transitionDistance={config.cloudTransitionDistance}
-          fullDistance={config.cloudFullDistance}
-          virtualPosition={virtualPosition}
-          sunDirection={sunDirection}
-          sunElevation={config.atmosphereConfig.sunElevation}
-          windOffset={windOffset}
-        />
-      )}
-      
-      {/* 3D Volumetric Clouds (appear when close) */}
-      {config.cloudsEnabled && (
-        <Cloud3DLayer
-          clouds={ALL_CLOUDS}
-          virtualPosition={virtualPosition}
-          transitionDistance={config.cloudTransitionDistance}
-          fullDistance={config.cloudFullDistance}
-          sunDirection={sunDirection}
-          sunElevation={config.atmosphereConfig.sunElevation}
+          cloudShadowDensity={config.cloudShadowDensity}
         />
       )}
     </>
@@ -110,17 +108,13 @@ function SceneContent({ config, virtualPosition, velocity, windOffset }: SceneCo
 }
 
 export function AtmosphereScene({ config, onVirtualPositionChange }: AtmosphereSceneProps) {
-  const [virtualPosition, setVirtualPosition] = useState(new THREE.Vector3(0, 500, 0));
+  // Start at altitude for good cloud view
+  const [virtualPosition, setVirtualPosition] = useState(new THREE.Vector3(0, 1000, 0));
   const [velocity, setVelocity] = useState(new THREE.Vector3(0, 0, 0));
-  const windOffsetRef = useRef(new THREE.Vector2(0, 0));
   
   const handleVirtualPositionChange = useCallback((position: THREE.Vector3) => {
     setVirtualPosition(position);
     onVirtualPositionChange?.(position);
-    
-    // Update wind offset based on time (simulated)
-    windOffsetRef.current.x += 0.1;
-    windOffsetRef.current.y += 0.05;
   }, [onVirtualPositionChange]);
   
   const handleVelocityChange = useCallback((vel: THREE.Vector3) => {
@@ -134,7 +128,7 @@ export function AtmosphereScene({ config, onVirtualPositionChange }: AtmosphereS
         alpha: false,
         powerPreference: 'high-performance',
       }}
-      dpr={[1, 2]}
+      dpr={[1, 1.5]}
     >
       <PerspectiveCamera
         makeDefault
@@ -144,7 +138,7 @@ export function AtmosphereScene({ config, onVirtualPositionChange }: AtmosphereS
         far={config.skyboxRadius * 3}
       />
       
-      {/* Virtual Flight Controls */}
+      {/* Virtual Flight Controls - same as starfield */}
       {config.flightEnabled && (
         <VirtualFlightControls
           speed={config.flightSpeed}
@@ -152,6 +146,7 @@ export function AtmosphereScene({ config, onVirtualPositionChange }: AtmosphereS
           enabled={config.flightEnabled}
           onVirtualPositionChange={handleVirtualPositionChange}
           onVelocityChange={handleVelocityChange}
+          hyperdriveMultiplier={20}
         />
       )}
       
@@ -159,8 +154,6 @@ export function AtmosphereScene({ config, onVirtualPositionChange }: AtmosphereS
         <SceneContent
           config={config}
           virtualPosition={virtualPosition}
-          velocity={velocity}
-          windOffset={windOffsetRef.current}
         />
       </Suspense>
     </Canvas>
